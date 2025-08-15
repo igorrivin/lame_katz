@@ -1,0 +1,145 @@
+# lame_pcurvature.sage
+# Test vanishing of p-curvature for the Lame operator with (n,B,g2,g3) = (5/87, 0, 0, 1)
+# on E: y^2 = 4 x^3 - 1, using the vector field nu = y d/dx + 6 x^2 d/dy.
+
+from sageall import *
+import sys, argparse
+
+def pair_add(u, v):
+    A, B = u; C, D = v
+    return (A + C, B + D)
+
+def pair_neg(u):
+    A, B = u
+    return (-A, -B)
+
+def pair_sub(u, v):
+    return pair_add(u, pair_neg(v))
+
+def pair_mul(u, v, f, R):
+    # (A + yB)*(C + yD) = (AC + f BD) + y(AD + BC)
+    A, B = u; C, D = v
+    return (A*C + f*B*D, A*D + B*C)
+
+def pair_scale_poly(P, u):
+    A, B = u
+    return (P*A, P*B)
+
+def nu_on_pair(u, R, f):
+    # u = (F, G) representing F(x) + y G(x)
+    x = R.gen()
+    F, G = u
+    Fp = F.derivative()
+    Gp = G.derivative()
+    # nu(F + yG) = 6 x^2 G + y( F' + f G' )
+    return ( (6*x^2)*G, Fp + f*Gp )
+
+def mat_add(M, N):
+    return [[pair_add(M[i][j], N[i][j]) for j in range(2)] for i in range(2)]
+
+def mat_sub(M, N):
+    return [[pair_sub(M[i][j], N[i][j]) for j in range(2)] for i in range(2)]
+
+def mat_mul(M, N, f, R):
+    out = [[(R(0), R(0)) for _ in range(2)] for __ in range(2)]
+    for i in range(2):
+        for j in range(2):
+            acc = (R(0), R(0))
+            for k in range(2):
+                acc = pair_add(acc, pair_mul(M[i][k], N[k][j], f, R))
+            out[i][j] = acc
+    return out
+
+def mat_nu(M, R, f):
+    return [[nu_on_pair(M[i][j], R, f) for j in range(2)] for i in range(2)]
+
+def mat_scale_scalar(c, M):  # c in base field (constant polynomial)
+    return [[(c*M[i][j][0], c*M[i][j][1]) for j in range(2)] for i in range(2)]
+
+def mat_zero(R):
+    return [[(R(0), R(0)) for _ in range(2)] for __ in range(2)]
+
+def mat_is_zero(M):
+    for i in range(2):
+        for j in range(2):
+            A, B = M[i][j]
+            if not (A.is_zero() and B.is_zero()):
+                return False
+    return True
+
+def alpha_p_binomial(p):
+    if p % 3 == 2:
+        return 0
+    # p % 3 == 1; compute (-1)^((p-1)/6) * binom((p-1)/2, (p-1)/3) * 4^((p-1)/3) mod p
+    j = (p - 1) // 3
+    m = (p - 1) // 2
+    s = -1 if ((p - 1) // 6) % 2 == 1 else 1
+    return (s * binomial(m, j) * pow(4, j, p)) % p
+
+def alpha_p_coeff(p, R):
+    # alpha_p = [x^(p-1)] (4x^3 - 1)^((p-1)/2) in F_p[x]
+    x = R.gen()
+    M = (p - 1) // 2
+    f = 4*x**3 - 1
+    F = f**M  # in R
+    return int(F.coefficient({x: p-1})) % p
+
+def lame_pcurvature_vanishes_for_p(p, alpha_method="binomial"):
+    if p < 5 or p == 29 or p == 3 or p == 2:
+        return None  # skip bad primes
+    Fp = GF(p)
+    R = PolynomialRing(Fp, 'x'); x = R.gen()
+    f = 4*x**3 - 1
+    # mu = 460 / 7569 mod p (exclude p|7569)
+    if Integer(7569) % p == 0:
+        return None
+    mu = Fp(460) * (~Fp(7569))  # inverse
+    # Build A(\nu) = [[0,1],[mu*x,0]]
+    A = [[(R(0), R(0)), (R(1), R(0))],
+         [(mu*x, R(0)), (R(0), R(0))]]
+    # Recurrence: A_{k+1} = nu(A_k) + A_k*A
+    Ak = A
+    for _ in range(p-1):
+        Ak = mat_add(mat_nu(Ak, R, f), mat_mul(Ak, A, f, R))
+    # alpha_p
+    if alpha_method == "binomial":
+        ap_int = alpha_p_binomial(p)
+    elif alpha_method == "coeff":
+        ap_int = alpha_p_coeff(p, R)
+    else:
+        raise ValueError("alpha_method must be 'binomial' or 'coeff'")
+    ap = Fp(ap_int)
+    # psi_p = A_p - alpha_p * A
+    psi = mat_sub(Ak, mat_scale_scalar(ap, A))
+    return mat_is_zero(psi)
+
+def scan(bound=200, alpha_method="binomial", list_mode="both"):
+    goods = []
+    bads  = []
+    for p in prime_range(5, bound+1):
+        if p in (29,):  # skip
+            continue
+        val = lame_pcurvature_vanishes_for_p(p, alpha_method=alpha_method)
+        if val is None:
+            continue
+        if val:
+            goods.append(p)
+        else:
+            bads.append(p)
+    if list_mode in ("good", "both"):
+        print("Primes with VANISHING p-curvature (good):")
+        print(goods)
+    if list_mode in ("bad", "both"):
+        print("Primes with NON-vanishing p-curvature (bad):")
+        print(bads)
+
+def main():
+    parser = argparse.ArgumentParser(description="Scan primes for vanishing p-curvature (Lamé, n=5/87, equianharmonic)")
+    parser.add_argument("--bound", type=int, default=200, help="Upper bound for primes (>=5)")
+    parser.add_argument("--alpha", type=str, default="binomial", choices=["binomial","coeff"], help="Method to compute alpha_p")
+    parser.add_argument("--list", type=str, default="both", choices=["good","bad","both"], help="Which lists to print")
+    args = parser.parse_args()
+    scan(bound=args.bound, alpha_method=args.alpha, list_mode=args.list)
+
+if __name__ == "__main__":
+    main()

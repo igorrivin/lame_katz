@@ -1,0 +1,94 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage[hidelinks]{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{microtype}
+
+\title{Testing \(p\)-curvature vanishing for a Lam\'e operator in the equianharmonic case}
+\author{Mini bundle (code + note)}
+\date{\today}
+
+\newtheorem{prop}{Proposition}
+\newtheorem{remark}{Remark}
+
+\begin{document}
+\maketitle
+
+\section*{Setup}
+Consider the Lam\'e equation
+\begin{equation}\label{eq:lame}
+(4z^3-1)\,y'' + 6z^2\,y' - \mu z\,y = 0,
+\qquad \mu = n(n+1)=\frac{460}{7569},
+\end{equation}
+i.e. the tuple \((n,B,g_2,g_3)=\bigl(\tfrac{5}{87},0,0,1\bigr)\).
+Following standard practice, recast \eqref{eq:lame} on the elliptic curve
+\begin{equation*}
+E:\ y^2=4x^3-1\qquad(j=0),
+\end{equation*}
+with the \(1\)-form \(\omega=\frac{dx}{y}\) and the vector field
+\(\nu = y\,\partial_x + 6x^2\,\partial_y\) (satisfying \(\omega(\nu)=1\)).
+The associated first--order system is
+\begin{equation}\label{eq:system}
+dY = A\,Y,\qquad
+A=\begin{pmatrix}0&\omega\\ \mu x\,\omega&0\end{pmatrix}.
+\end{equation}
+
+\section*{Computing \(p\)-curvature along \(\nu\)}
+For a good prime \(p\ge 5\), \(p\neq 29\), define the matrices
+\(
+A_1(\nu)=A(\nu)=\begin{psmallmatrix}0&1\\ \mu x&0\end{psmallmatrix}
+\)
+and recursively
+\begin{equation}\label{eq:recurrence}
+A_{k+1}(\nu) = \nu\big(A_k(\nu)\big) + A_k(\nu)\,A(\nu),\qquad k\ge 1.
+\end{equation}
+Here \(\nu\) acts entrywise via
+\(\nu(F+yG)=6x^2G + y\big(F'(x)+(4x^3-1)G'(x)\big)\).
+Let \(\alpha_p\) be the Hasse--Witt invariant of \(E\) with respect to \(\omega\), so that
+\(
+C_p(\omega)=\alpha_p\,\omega
+\)
+and \(\nu^{[p]}=\alpha_p\,\nu\).
+Then the \(p\)-curvature in the \(\nu\) direction is
+\begin{equation}\label{eq:psiformula}
+\psi_p(\nu) \;=\; A_p(\nu) - \alpha_p\,A(\nu).
+\end{equation}
+
+\paragraph{Closed formula for \(\alpha_p\).}
+Writing \(f(x)=4x^3-1\) and \(M=(p-1)/2\), one has
+\([x^{p-1}]\,f(x)^{M}\equiv \alpha_p \pmod p\), so that explicitly
+\begin{align*}
+\alpha_p &\equiv
+\begin{cases}
+(-1)^{\frac{p-1}{6}}\binom{\frac{p-1}{2}}{\frac{p-1}{3}}\,4^{\frac{p-1}{3}} & (p\equiv 1\!\!\!\pmod 3),\\[4pt]
+0 & (p\equiv 2\!\!\!\pmod 3).
+\end{cases}
+\end{align*}
+These are the familiar ordinary/supersingular behaviors for \(j=0\).
+
+\section*{Algorithm (implemented in Sage)}
+Work in \(R_p=\mathbb{F}_p[x,y]/(y^2-4x^3+1)\) using the (unique) representation
+\(F(x)+yG(x)\), and implement \eqref{eq:recurrence} entrywise.
+After \(p-1\) steps, compute \(\psi_p(\nu)\) via \eqref{eq:psiformula};
+\(\psi_p(\nu)=0\) iff all four entries in \(R_p\) vanish.
+We skip \(p\in\{2,3,29\}\).
+
+\medskip
+The accompanying \texttt{lame\_pcurvature.sage} script automates this and scans all primes in
+\([5,N]\) (skipping \(29\)), reporting those with vanishing/nonvanishing \(p\)-curvature.
+
+\section*{Remarks}
+\begin{remark}
+For this \(n=\tfrac{5}{87}\), one expects density \(0\) of primes with \(\psi_p=0\)
+(infinite monodromy). The script is meant for experimentation and verification at modest bounds.
+\end{remark}
+
+\begin{remark}
+For performance at large \(p\), specialized \(p\)-curvature algorithms can be used,
+but are beyond the scope of this small, transparent implementation.
+\end{remark}
+
+\bigskip
+\noindent\emph{Files:} The Sage code and a Makefile are included alongside this note.
+
+\end{document}
