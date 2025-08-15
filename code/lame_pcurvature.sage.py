@@ -4,8 +4,8 @@
 from sage.all_cmdline import *   # import sage library
 
 _sage_const_6 = Integer(6); _sage_const_2 = Integer(2); _sage_const_0 = Integer(0); _sage_const_1 = Integer(1); _sage_const_3 = Integer(3); _sage_const_4 = Integer(4); _sage_const_5 = Integer(5); _sage_const_29 = Integer(29); _sage_const_7569 = Integer(7569); _sage_const_460 = Integer(460); _sage_const_200 = Integer(200)# lame_pcurvature.sage
-# Test vanishing of p-curvature for the Lame operator with (n,B,g2,g3) = (5/87, 0, 0, 1)
-# on E: y^2 = 4 x^3 - 1, using the vector field nu = y d/dx + 6 x^2 d/dy.
+# Test vanishing of p-curvature for Lamé with (n,B,g2,g3)=(5/87,0,0,1)
+# on E: y^2 = 4 x^3 - 1, using nu = y d/dx + 6 x^2 d/dy.
 
 from sage.all import *
 import sys, argparse
@@ -26,18 +26,15 @@ def pair_mul(u, v, f, R):
     A, B = u; C, D = v
     return (A*C + f*B*D, A*D + B*C)
 
-def pair_scale_poly(P, u):
-    A, B = u
-    return (P*A, P*B)
-
 def nu_on_pair(u, R, f):
     # u = (F, G) representing F(x) + y G(x)
+    # nu = y d/dx + 6 x^2 d/dy
+    # -> nu(F + yG) = y*F' + 6 x^2 G + (y^2)*G' = (f*G' + 6 x^2 G) + y*F'
     x = R.gen()
     F, G = u
     Fp = F.derivative()
     Gp = G.derivative()
-    # nu(F + yG) = 6 x^2 G + y( F' + f G' )
-    return ( (_sage_const_6 *x**_sage_const_2 )*G, Fp + f*Gp )
+    return ( f*Gp + (_sage_const_6 *x**_sage_const_2 )*G, Fp )
 
 def mat_add(M, N):
     return [[pair_add(M[i][j], N[i][j]) for j in range(_sage_const_2 )] for i in range(_sage_const_2 )]
@@ -58,11 +55,8 @@ def mat_mul(M, N, f, R):
 def mat_nu(M, R, f):
     return [[nu_on_pair(M[i][j], R, f) for j in range(_sage_const_2 )] for i in range(_sage_const_2 )]
 
-def mat_scale_scalar(c, M):  # c in base field (constant polynomial)
+def mat_scale_scalar(c, M):  # c in base field
     return [[(c*M[i][j][_sage_const_0 ], c*M[i][j][_sage_const_1 ]) for j in range(_sage_const_2 )] for i in range(_sage_const_2 )]
-
-def mat_zero(R):
-    return [[(R(_sage_const_0 ), R(_sage_const_0 )) for _ in range(_sage_const_2 )] for __ in range(_sage_const_2 )]
 
 def mat_is_zero(M):
     for i in range(_sage_const_2 ):
@@ -75,7 +69,6 @@ def mat_is_zero(M):
 def alpha_p_binomial(p):
     if p % _sage_const_3  == _sage_const_2 :
         return _sage_const_0 
-    # p % 3 == 1; compute (-1)^((p-1)/6) * binom((p-1)/2, (p-1)/3) * 4^((p-1)/3) mod p
     j = (p - _sage_const_1 ) // _sage_const_3 
     m = (p - _sage_const_1 ) // _sage_const_2 
     s = -_sage_const_1  if ((p - _sage_const_1 ) // _sage_const_6 ) % _sage_const_2  == _sage_const_1  else _sage_const_1 
@@ -86,51 +79,42 @@ def alpha_p_coeff(p, R):
     x = R.gen()
     M = (p - _sage_const_1 ) // _sage_const_2 
     f = _sage_const_4 *x**_sage_const_3  - _sage_const_1 
-    F = f**M  # in R
-    return int(F.coefficient({x: p-_sage_const_1 })) % p
+    F = f**M
+    return int(F.monomial_coefficient(x**(p-_sage_const_1 ))) % p
 
 def lame_pcurvature_vanishes_for_p(p, alpha_method="binomial"):
-    if p < _sage_const_5  or p == _sage_const_29  or p == _sage_const_3  or p == _sage_const_2 :
+    if p < _sage_const_5  or p in (_sage_const_29 , _sage_const_3 , _sage_const_2 ):
         return None  # skip bad primes
     Fp = GF(p)
     R = PolynomialRing(Fp, 'x'); x = R.gen()
     f = _sage_const_4 *x**_sage_const_3  - _sage_const_1 
-    # mu = 460 / 7569 mod p (exclude p|7569)
     if Integer(_sage_const_7569 ) % p == _sage_const_0 :
         return None
-    mu = Fp(_sage_const_460 ) * (~Fp(_sage_const_7569 ))  # inverse
-    # Build A(\nu) = [[0,1],[mu*x,0]]
+    mu = Fp(_sage_const_460 ) / Fp(_sage_const_7569 )
     A = [[(R(_sage_const_0 ), R(_sage_const_0 )), (R(_sage_const_1 ), R(_sage_const_0 ))],
          [(mu*x, R(_sage_const_0 )), (R(_sage_const_0 ), R(_sage_const_0 ))]]
-    # Recurrence: A_{k+1} = nu(A_k) + A_k*A
     Ak = A
     for _ in range(p-_sage_const_1 ):
         Ak = mat_add(mat_nu(Ak, R, f), mat_mul(Ak, A, f, R))
-    # alpha_p
     if alpha_method == "binomial":
         ap_int = alpha_p_binomial(p)
     elif alpha_method == "coeff":
         ap_int = alpha_p_coeff(p, R)
     else:
         raise ValueError("alpha_method must be 'binomial' or 'coeff'")
-    ap = Fp(ap_int)
-    # psi_p = A_p - alpha_p * A
+    ap = GF(p)(ap_int)
     psi = mat_sub(Ak, mat_scale_scalar(ap, A))
     return mat_is_zero(psi)
 
 def scan(bound=_sage_const_200 , alpha_method="binomial", list_mode="both"):
-    goods = []
-    bads  = []
+    goods, bads = [], []
     for p in prime_range(_sage_const_5 , bound+_sage_const_1 ):
         if p in (_sage_const_29 ,):  # skip
             continue
         val = lame_pcurvature_vanishes_for_p(p, alpha_method=alpha_method)
         if val is None:
             continue
-        if val:
-            goods.append(p)
-        else:
-            bads.append(p)
+        (goods if val else bads).append(p)
     if list_mode in ("good", "both"):
         print("Primes with VANISHING p-curvature (good):")
         print(goods)
